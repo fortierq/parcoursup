@@ -1,0 +1,9 @@
+- Normaliser les noms de colonnes
+- Simplifier les noms de colonnes, par exemple : Candidat - Code -> code
+- Date Naissance -> annees_avance
+- Profil Candidat - Libellé -> booléen terminale_france
+- Candidat boursier - Libellé -> booléen boursier
+- Revenu brut global -> revenu
+- Type de Scolarité - Libellé 2024/2025 -> booléen etranger
+- Langue vivante A scolarité - Libellé 2024/2025 -> LVA
+- Option facultative 1 Scolarité - Libellé 2024/2025 -> 
