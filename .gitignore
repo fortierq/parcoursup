@@ -1,2 +1,6 @@
 *.csv
-.*
+__pycache__/
+*.pyc
+.venv/
+uv.lock
+__marimo__/

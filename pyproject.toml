@@ -1,0 +1,15 @@
+[project]
+name = "parcoursup"
+version = "0.1.0"
+description = "Analyse des candidatures Parcoursup MP2I"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "marimo>=0.10",
+    "altair>=6.0.0",
+    "pyzmq>=27.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
