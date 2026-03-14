@@ -214,10 +214,11 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
     datasets: list[pd.DataFrame] = []
 
     for annee in annees:
-        _, notes, _ = load(annee)
+        eleves, notes, _ = load(annee)
         ranking = load_classement(annee)
         features = _build_feature_frame(notes, annee)
-        cohort = ranking.join(features, on="code")
+        profils = eleves.reset_index().loc[:, ["code", "fille", "boursier"]]
+        cohort = ranking.join(features, on="code").merge(profils, on="code", how="left")
         unique_cohort = cohort.groupby(["nom", "prenom"]).filter(lambda group: len(group) == 1)
         cohort_columns = [
             "annee",
@@ -227,11 +228,15 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
             "classement",
             "classement_num",
             "points_formule",
+            "fille",
+            "boursier",
             *features.columns.tolist(),
         ]
         cohort_unique = unique_cohort.loc[:, cohort_columns]
         mpi_annee = mpi_summary.loc[mpi_summary["annee"] == annee]
         merged = mpi_annee.merge(cohort_unique, on=["annee", "nom", "prenom"], how="left", suffixes=("_mpi", "_parcoursup"))
+        merged["fille"] = merged["fille"].fillna(False).astype(bool)
+        merged["boursier"] = merged["boursier"].fillna(False).astype(bool)
         datasets.append(merged)
 
     return pd.concat(datasets, ignore_index=True)

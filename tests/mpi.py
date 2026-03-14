@@ -29,7 +29,26 @@ def _():
 
 @app.cell
 def _(alt, mo, mpi):
-    chart = mo.ui.altair_chart(alt.Chart(mpi).mark_point().encode(x="Horsepower", y="Miles_per_Gallon", color="Origin"))
+    from numpy import shape
+    chart = mo.ui.altair_chart(alt.Chart(mpi).mark_point().encode(
+        x="points_formule", 
+        y="mpi_moyenne", 
+        color="fille",
+        shape="boursier"
+        )
+    )
+    return (chart,)
+
+
+@app.cell
+def _(chart, mo):
+    mo.vstack([chart, mo.ui.table(chart.value)])
+    return
+
+
+@app.cell
+def _(chart):
+    print(chart.to_json())
 
     return
 
