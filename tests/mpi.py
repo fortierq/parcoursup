@@ -15,8 +15,8 @@ __generated_with = "0.20.4"
 app = marimo.App(width="medium")
 
 
-@app.cell
-def _():
+app._unparsable_cell(
+    r"""
     import altair as alt
     import marimo as mo
 
@@ -33,30 +33,25 @@ def _():
             color="fille",
             shape="boursier",
         )
-        .properties(width=1000, height=400)
     )
-    return chart, mo, mpi
+    )
+    """,
+    name="_"
+)
 
 
 @app.cell
 def _(chart, mo, mpi):
-    df = mpi[[m for m in mpi.columns if any(s in m for s in ["moyenne", "terminale", "premiere"])]]
-
-    selection = chart.apply_selection(df)
+    selection = chart.apply_selection(mpi)
+    df = selection[[m for m in selection.columns if any(s in m for s in ["moyenne", "terminale", "premiere"])]]
     moyennes_selection = (
-        selection.mean()
+        df.mean()
         .round(2)
         .rename("moyenne")
         .reset_index()
         .rename(columns={"index": "variable"})
     )
-    mo.hstack([chart, mo.ui.table(moyennes_selection)])
-    return
-
-
-@app.cell
-def _(chart, mpi):
-    chart.apply_selection(mpi)
+    mo.vstack([mo.hstack([chart, mo.ui.table(moyennes_selection)]), chart.apply_selection(mpi)])   
     return
 
 
