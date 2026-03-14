@@ -9,7 +9,16 @@
     "postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=\"$HOME/.local/bin:$PATH\" && uv sync",
     "customizations": {
         "vscode": {
+            "settings": {
+                "[python]": {
+                    "editor.rulers": [
+                        150
+                    ],
+                    "editor.wordWrapColumn": 150
+                }
+            },
             "extensions": [
+                "charliermarsh.ruff",
                 "ms-python.python",
                 "marimo-team.vscode-marimo"
             ]

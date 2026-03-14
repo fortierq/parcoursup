@@ -38,13 +38,31 @@ def _year_str(annee: int, offset: int = 0) -> str:
 
 # ── Chargement du CSV brut ───────────────────────────────────────────────────
 
+
 def _read_csv(annee: int) -> pd.DataFrame:
     short = annee % 100
     path = ROOT / "data" / "parcoursup" / str(short) / f"mp2i_{short}.csv"
     return pd.read_csv(path, sep=";", encoding="utf-8", low_memory=False)
 
 
+def _read_ival_csv(annee: int) -> pd.DataFrame:
+    short = annee % 100
+    path = ROOT / "data" / "ival" / f"ival_{short}.csv"
+    return pd.read_csv(
+        path,
+        sep=";",
+        encoding="utf-8",
+        low_memory=False,
+        dtype={
+            "UAI": "string",
+            "Code commune": "string",
+            "Code departement": "string",
+        },
+    )
+
+
 # ── Construction du DataFrame élèves ─────────────────────────────────────────
+
 
 def _build_eleves(df: pd.DataFrame, annee: int) -> pd.DataFrame:
     ys = _year_str(annee)
@@ -53,26 +71,23 @@ def _build_eleves(df: pd.DataFrame, annee: int) -> pd.DataFrame:
 
     eleves["nom"] = df["Candidat - Nom"].values
     eleves["prenom"] = df["Candidat - Prénom"].values
-    eleves["fille"] = (df["Sexe"].values == "Féminin")
+    eleves["fille"] = df["Sexe"].values == "Féminin"
+    eleves["profil"] = df["Profil Candidat - Libellé"].values
 
-    birth_year = pd.to_datetime(
-        df["Date Naissance"], format="%d/%m/%Y").dt.year
+    birth_year = pd.to_datetime(df["Date Naissance"], format="%d/%m/%Y").dt.year
     eleves["annees_avance"] = 18 - (annee - birth_year.values)
 
-    eleves["terminale_france"] = (
-        df["Profil Candidat - Libellé"].values == "En terminale")
-    eleves["boursier"] = df["Candidat boursier - Libellé"].str.startswith(
-        "Boursier").values
+    eleves["boursier"] = df["Candidat boursier - Libellé"].str.startswith("Boursier").values
     eleves["revenu"] = _to_numeric(df["Revenu brut global"]).values
-    eleves["distance"] = _to_numeric(
-        df["Distance domicile-établissement(Km)"]).values
-    eleves["internat"] = (df["Demande Internat - Libellé"].values == "Oui")
+    eleves["distance"] = _to_numeric(df["Distance domicile-établissement(Km)"]).values
+    eleves["internat"] = df["Demande Internat - Libellé"].values == "Oui"
     eleves["niveau_classe"] = df["Niveau Classe - Libellé"].values
+    eleves["motivation"] = df["Lettre de motivation"].values if "Lettre de motivation" in df.columns else None
+    eleves["avis_ce"] = (
+        df["Avis CE sur la capacité à réussir - Libellé"].values if "Avis CE sur la capacité à réussir - Libellé" in df.columns else None
+    )
 
     # Colonnes liées à l'établissement d'origine (année courante)
-    col = f"Type de contrat établissement d'origine - Libellé {ys}"
-    eleves["public"] = (
-        df[col] == "Public").values if col in df.columns else False
 
     col = f"UAI Etablissement origine {ys}"
     eleves["uai"] = df[col].values if col in df.columns else None
@@ -83,15 +98,52 @@ def _build_eleves(df: pd.DataFrame, annee: int) -> pd.DataFrame:
     col = f"Pays Etablissement origine - Libellé {ys}"
     eleves["pays"] = df[col].values if col in df.columns else None
 
-    col = f"Scolarisation sur l'année - Libellé {ys}"
-    eleves["scolarisation"] = (
-        df[col].str.contains("scolarisé sur cette année",
-                             case=False, na=False).values
-        if col in df.columns
-        else False
-    )
+    col = f"Type de contrat établissement d'origine - Libellé {ys}"
+    eleves["public"] = (df[col] == "Public").values if col in df.columns else False
 
     return eleves
+
+
+def _build_lycees(eleves: pd.DataFrame, annee: int) -> pd.DataFrame:
+    ival = _read_ival_csv(annee)
+
+    mentions_tb = _to_numeric(ival["Nombre de mentions TB avec félicitations - G"]).fillna(0) + _to_numeric(
+        ival["Nombre de mentions TB sans félicitations - G"]
+    ).fillna(0)
+    presents_g = _to_numeric(ival["Présents - Gnle"])
+    ival = ival.assign(pourcentage_tb=(100 * mentions_tb / presents_g).where(presents_g > 0))
+
+    latest = (
+        ival.sort_values("Année")
+        .dropna(subset=["UAI"])
+        .drop_duplicates(subset=["UAI"], keep="last")
+        .loc[:, ["UAI", "Etablissement", "Secteur", "Commune", "Code departement"]]
+        .rename(
+            columns={
+                "UAI": "uai",
+                "Etablissement": "nom",
+                "Secteur": "public",
+                "Commune": "commune",
+                "Code departement": "departement",
+            }
+        )
+    )
+    latest["public"] = latest["public"].fillna("").str.casefold().eq("public")
+
+    pourcentage_tb = ival.dropna(subset=["UAI"]).groupby("UAI")["pourcentage_tb"].mean().rename("pourcentage_tb")
+
+    lycees = latest.merge(pourcentage_tb, left_on="uai", right_index=True, how="left")
+    lycees = lycees[
+        [
+            "uai",
+            "nom",
+            "pourcentage_tb",
+            "public",
+            "commune",
+            "departement",
+        ]
+    ]
+    return lycees.sort_values(["departement", "commune", "nom"], na_position="last").reset_index(drop=True)
 
 
 # ── Construction du DataFrame notes ──────────────────────────────────────────
@@ -126,7 +178,7 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
 
     # Bloc 0 → Terminale (annee, suffix=""), Bloc 1 → Première (annee-1, suffix=".1")
     year_configs = [
-        (annee, ""),      # Terminale
+        (annee, ""),  # Terminale
         (annee - 1, ".1"),  # Première
     ]
 
@@ -165,8 +217,7 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
         # lva
         col = f"Langue vivante A scolarité - Libellé {ys}"
         key = ("info", yr, "lva")
-        data[key] = df[col].values if col in df.columns else pd.Series(
-            [None] * len(df)).values
+        data[key] = df[col].values if col in df.columns else pd.Series([None] * len(df)).values
         tuples.append(key)
 
         # math_expertes (booléen)
@@ -181,17 +232,27 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
         tuples.append(key)
 
     # Construire le MultiIndex et le DataFrame
-    multi_idx = pd.MultiIndex.from_tuples(
-        tuples, names=["matiere", "annee", "stat"])
+    multi_idx = pd.MultiIndex.from_tuples(tuples, names=["matiere", "annee", "stat"])
     notes = pd.DataFrame(data, index=df["Candidat - Code"], columns=multi_idx)
     notes.index.name = "code"
 
     return notes
 
 
+def _add_specialite_flags(eleves: pd.DataFrame, notes: pd.DataFrame, annee: int) -> pd.DataFrame:
+    for niveau, year in (("terminale", annee), ("premiere", annee - 1)):
+        for matiere in ("math_spe", "pc", "nsi"):
+            eleves[f"{matiere}_{niveau}"] = notes[(matiere, year, "moyenne")].notna().values
+
+        eleves[f"math_expertes_{niveau}"] = notes[("info", year, "math_expertes")].fillna(False).astype(bool).values
+
+    return eleves
+
+
 # ── API publique ─────────────────────────────────────────────────────────────
 
-def load(annee: int = 2026) -> tuple[pd.DataFrame, pd.DataFrame]:
+
+def load(annee: int = 2026) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Charge et transforme le fichier CSV Parcoursup pour l'année donnée.
 
     Parameters
@@ -205,8 +266,12 @@ def load(annee: int = 2026) -> tuple[pd.DataFrame, pd.DataFrame]:
         Informations personnelles des candidats (indexé par *code*).
     notes : pd.DataFrame
         Moyennes annuelles avec ``MultiIndex`` ``(matière, année_short, stat)``.
+    lycees : pd.DataFrame
+        Informations établissements enrichies par IVAL et distance moyenne des candidats.
     """
     df = _read_csv(annee)
     eleves = _build_eleves(df, annee)
     notes = _build_notes(df, annee)
-    return eleves, notes
+    eleves = _add_specialite_flags(eleves, notes, annee)
+    lycees = _build_lycees(eleves, annee)
+    return eleves, notes, lycees

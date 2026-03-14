@@ -30,3 +30,5 @@ Faire de même pour notes["philo"][25]["rang"], notes["philo"][25]["effectif"], 
 - Mathématiques Expertes -> math_expertes
 - Langue vivante A -> lva
 - Français -> fr. Pour le français, ajouter colonne "Note de l'épreuve - Français écrit" -> ecrit et "Note de l'épreuve - Français oral" -> oral.
+
+Ajouter un MultiIndex 

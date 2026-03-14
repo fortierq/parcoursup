@@ -18,7 +18,7 @@ Nombre de frères et sœurs non inscrits dans l'enseignement supérieur
 Nombre de frêres et soeurs inscrits dans l'enseignement supérieur
 ACB - futur Echelon
 Type de Scolarité - Libellé 2025/2026
-Niveau Etude - Libellé 2025/2026
+ Niveau Etude - Libellé 2025/2026
 Type Formation - Libellé  2025/2026
 Formation Domaine - Libellé 2025/2026
 Filiere (pour scolarité du supérieur)- Libellé 2025/2026
@@ -574,3 +574,4 @@ Demande Aménagement Artiste Haut Niveau - Libellé
 Validation du diplôme - Libellé
 Lettre de motivation
 Fiche réorientation - Libellé
+
