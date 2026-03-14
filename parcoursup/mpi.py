@@ -190,7 +190,6 @@ def load_classement(annee: int) -> pd.DataFrame:
         }
     )
     ranking["code"] = pd.to_numeric(ranking["code"], errors="coerce")
-    ranking["classement_num"] = pd.to_numeric(ranking["classement"], errors="coerce")
     ranking["points_formule"] = pd.to_numeric(ranking["points_formule"], errors="coerce")
     ranking["nom"] = ranking["nom"].map(_normalize_text)
     ranking["prenom"] = ranking["prenom"].map(_normalize_text)
@@ -226,7 +225,6 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
             "nom",
             "prenom",
             "classement",
-            "classement_num",
             "points_formule",
             "fille",
             "boursier",
@@ -235,8 +233,8 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
         cohort_unique = unique_cohort.loc[:, cohort_columns]
         mpi_annee = mpi_summary.loc[mpi_summary["annee"] == annee]
         merged = mpi_annee.merge(cohort_unique, on=["annee", "nom", "prenom"], how="left", suffixes=("_mpi", "_parcoursup"))
-        merged["fille"] = merged["fille"].fillna(False).astype(bool)
-        merged["boursier"] = merged["boursier"].fillna(False).astype(bool)
+        merged["fille"] = merged["fille"].fillna(False).astype(bool).map({True: "oui", False: "non"})
+        merged["boursier"] = merged["boursier"].fillna(False).astype(bool).map({True: "oui", False: "non"})
         datasets.append(merged)
 
     return pd.concat(datasets, ignore_index=True)

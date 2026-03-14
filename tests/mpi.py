@@ -23,33 +23,40 @@ def _():
     from parcoursup.mpi import load_mpi
 
     mpi = load_mpi()
-    mpi
-    return alt, mo, mpi
 
-
-@app.cell
-def _(alt, mo, mpi):
-    from numpy import shape
-    chart = mo.ui.altair_chart(alt.Chart(mpi).mark_point().encode(
-        x="points_formule", 
-        y="mpi_moyenne", 
-        color="fille",
-        shape="boursier"
+    chart = mo.ui.altair_chart(
+        alt.Chart(mpi)
+        .mark_point()
+        .encode(
+            x=alt.X("points_formule", scale=alt.Scale(domain=[44, 80])),
+            y="mpi_moyenne",
+            color="fille",
+            shape="boursier",
         )
+        .properties(width=1000, height=400)
     )
-    return (chart,)
+    return chart, mo, mpi
 
 
 @app.cell
-def _(chart, mo):
-    mo.vstack([chart, mo.ui.table(chart.value)])
+def _(chart, mo, mpi):
+    df = mpi[[m for m in mpi.columns if any(s in m for s in ["moyenne", "terminale", "premiere"])]]
+
+    selection = chart.apply_selection(df)
+    moyennes_selection = (
+        selection.mean()
+        .round(2)
+        .rename("moyenne")
+        .reset_index()
+        .rename(columns={"index": "variable"})
+    )
+    mo.hstack([chart, mo.ui.table(moyennes_selection)])
     return
 
 
 @app.cell
-def _(chart):
-    print(chart.to_json())
-
+def _(chart, mpi):
+    chart.apply_selection(mpi)
     return
 
 
