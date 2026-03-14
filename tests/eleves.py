@@ -28,43 +28,28 @@ def imports():
 
 
 @app.cell
-def _(eleves, notes):
-    eleves.join(notes.to_flat_index(), on="code")
-    return
-
-
-@app.cell
 def _(eleves):
-    eleves.query("pays != 'France'")
+    eleves
     return
 
 
 @app.cell
-def _(notes):
-    notes
-    return
-
-
-@app.cell
-def _(eleves, mo, pd):
+def _(eleves, pd):
     stats = pd.DataFrame(
         {
             "Filles": [eleves["fille"].sum()],
             "Garçons": [(~eleves["fille"]).sum()],
             "Boursiers": [eleves["boursier"].sum()],
-            "Terminale France": [eleves["terminale_france"].sum()],
             "Internat demandé": [eleves["internat"].sum()],
+            "NSI terminale": [eleves["nsi_terminale"].sum()],
+            "NSI première": [eleves["nsi_premiere"].sum()],
+            "PC terminale": [eleves["pc_terminale"].sum()],
+            "PC première": [eleves["pc_premiere"].sum()],
         }
     ).T
     stats.columns = ["Effectif"]
     stats["Proportion"] = (stats["Effectif"] / len(eleves) * 100).round(1).astype(str) + " %"
-    mo.md("### Profil des candidats")
-    return (stats,)
-
-
-@app.cell
-def table_stats(mo, stats):
-    mo.ui.table(stats.reset_index().rename(columns={"index": "Critère"}))
+    stats
     return
 
 
@@ -115,7 +100,7 @@ def table_distance(desc, mo):
 @app.cell
 def avance_retard(eleves, mo):
     mo.md("### Avance / retard scolaire")
-    distrib = eleves["annees_avance"].value_counts().sort_index()
+    eleves["annees_avance"].value_counts().sort_index()
     return
 
 

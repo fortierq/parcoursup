@@ -6,10 +6,6 @@ app = marimo.App()
 
 @app.cell
 def _():
-    import marimo as mo
-    import pandas as pd
-    import altair as alt
-
     from parcoursup.load import load
 
     annee = 2026

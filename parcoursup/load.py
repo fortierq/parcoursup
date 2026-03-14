@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import pandas as pd
+
+FICHE_AVENIR_MATIERES = [
+    "Philosophie",
+    "Langue vivante A",
+    "Mathématiques Spécialité",
+    "Physique-Chimie Spécialité",
+    "Sciences de la vie et de la Terre Spécialité",
+    "Sciences de l'ingénieur et sciences physiques",
+    "Numérique et Sciences Informatiques",
+    "Mathématiques Expertes",
+]
 
 # ── Répertoire racine du projet ──────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,12 +54,19 @@ def _year_str(annee: int, offset: int = 0) -> str:
 def _read_csv(annee: int) -> pd.DataFrame:
     short = annee % 100
     path = ROOT / "data" / "parcoursup" / str(short) / f"mp2i_{short}.csv"
-    return pd.read_csv(path, sep=";", encoding="utf-8", low_memory=False)
+    try:
+        return pd.read_csv(path, sep=";", encoding="utf-8", low_memory=False)
+    except pd.errors.ParserError:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=pd.errors.ParserWarning)
+            return pd.read_csv(path, sep=";", encoding="utf-8", engine="python", on_bad_lines="warn")
 
 
 def _read_ival_csv(annee: int) -> pd.DataFrame:
     short = annee % 100
     path = ROOT / "data" / "ival" / f"ival_{short}.csv"
+    if not path.exists():
+        return pd.DataFrame()
     return pd.read_csv(
         path,
         sep=";",
@@ -107,6 +126,13 @@ def _build_eleves(df: pd.DataFrame, annee: int) -> pd.DataFrame:
 def _build_lycees(eleves: pd.DataFrame, annee: int) -> pd.DataFrame:
     ival = _read_ival_csv(annee)
 
+    if ival.empty:
+        lycees = eleves.dropna(subset=["uai"]).groupby("uai", as_index=False).agg(public=("public", "max"), departement=("departement", "first"))
+        lycees["nom"] = None
+        lycees["pourcentage_tb"] = float("nan")
+        lycees["commune"] = None
+        return lycees[["uai", "nom", "pourcentage_tb", "public", "commune", "departement"]]
+
     mentions_tb = _to_numeric(ival["Nombre de mentions TB avec félicitations - G"]).fillna(0) + _to_numeric(
         ival["Nombre de mentions TB sans félicitations - G"]
     ).fillna(0)
@@ -162,11 +188,35 @@ def _to_numeric(s: pd.Series) -> pd.Series:
     return pd.to_numeric(s, errors="coerce")
 
 
-def _get_col(df: pd.DataFrame, col_name: str, suffix: str = "") -> pd.Series:
-    """Accède à une colonne, avec gestion du suffixe pandas pour les doublons."""
-    target = col_name + suffix
-    if target in df.columns:
-        return _to_numeric(df[target])
+def _legacy_fiche_avenir_column(stat_csv: str, matiere_csv: str) -> str | None:
+    if matiere_csv not in FICHE_AVENIR_MATIERES:
+        return None
+
+    index = FICHE_AVENIR_MATIERES.index(matiere_csv)
+    suffix = "" if index == 0 else f".{index}"
+    return f"{stat_csv}{suffix}"
+
+
+def _candidate_note_columns(stat_csv: str, matiere_csv: str, trimestre: int, suffix: str) -> list[str]:
+    candidates = [f"{stat_csv} - {matiere_csv} - Trimestre {trimestre}{suffix}"]
+
+    if stat_csv in {"Moyenne du Candidat", "Moyenne classe Candidat"}:
+        candidates.append(f"{stat_csv} en {matiere_csv} pour trimestre {trimestre}{suffix}")
+
+    if suffix == "" and stat_csv in {"Rang Candidat", "Effectif Classe"}:
+        candidates.append(f"{stat_csv} - {matiere_csv}")
+        legacy = _legacy_fiche_avenir_column(stat_csv, matiere_csv)
+        if legacy is not None:
+            candidates.append(legacy)
+
+    return candidates
+
+
+def _get_col(df: pd.DataFrame, stat_csv: str, matiere_csv: str, trimestre: int, suffix: str = "") -> pd.Series:
+    """Accède à une colonne, avec gestion des variantes historiques de nommage."""
+    for target in _candidate_note_columns(stat_csv, matiere_csv, trimestre, suffix):
+        if target in df.columns:
+            return _to_numeric(df[target])
     return pd.Series([float("nan")] * len(df), index=df.index, dtype="float64")
 
 
@@ -184,11 +234,12 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
 
     for matiere_csv, matiere_short in MATIERES.items():
         for year_short, suffix in year_configs:
+            if matiere_short == "fr" and suffix == "":
+                continue  # Pas de notes de français en première
             for stat_csv, stat_short in STATS.items():
                 cols_t = []
                 for t in (1, 2, 3):
-                    col_name = f"{stat_csv} - {matiere_csv} - Trimestre {t}"
-                    series = _get_col(df, col_name, suffix)
+                    series = _get_col(df, stat_csv, matiere_csv, t, suffix)
                     if series.notna().any():
                         cols_t.append(series)
 
@@ -205,14 +256,14 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
         ("Note de l'épreuve - Français oral", "oral"),
     ]:
         if col_csv in df.columns:
-            key = ("fr", 2026, stat_name)
+            key = ("fr", annee, stat_name)
             data[key] = _to_numeric(df[col_csv]).values
             tuples.append(key)
 
     # ── Métadonnées par année (info) ─────────────────────────────────────
     for offset in (0, -1):
         ys = _year_str(annee, offset)
-        yr = 2026 + offset
+        yr = annee + offset
 
         # lva
         col = f"Langue vivante A scolarité - Libellé {ys}"
@@ -244,7 +295,11 @@ def _add_specialite_flags(eleves: pd.DataFrame, notes: pd.DataFrame, annee: int)
         for matiere in ("math_spe", "pc", "nsi"):
             eleves[f"{matiere}_{niveau}"] = notes[(matiere, year, "moyenne")].notna().values
 
-        eleves[f"math_expertes_{niveau}"] = notes[("info", year, "math_expertes")].fillna(False).astype(bool).values
+        key = ("info", year, "math_expertes")
+        if key in notes.columns:
+            eleves[f"math_expertes_{niveau}"] = notes[key].fillna(False).astype(bool).values
+        else:
+            eleves[f"math_expertes_{niveau}"] = False
 
     return eleves
 
