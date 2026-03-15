@@ -38,15 +38,30 @@ def build_mpi_chart(dataset: pd.DataFrame) -> mo.ui.altair_chart:
     )
 
 
-def build_selection_summary(selection: pd.DataFrame) -> pd.DataFrame:
+def build_selection_summary(
+    selection: pd.DataFrame,
+    reference_selection: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     selected_columns = [
         column for column in selection.columns if any(token in column for token in ("moy", "term", "prem"))
     ]
-    return (
+    reference_selection = selection if reference_selection is None else reference_selection
+
+    selection_mean = (
         selection.loc[:, selected_columns]
         .mean()
         .round(1)
-        .rename("moy")
+        .rename("Moyenne sélection")
+    )
+    general_mean = (
+        reference_selection.loc[:, selected_columns]
+        .mean()
+        .round(1)
+        .rename("Moyenne générale")
+    )
+
+    return (
+        pd.concat([selection_mean, general_mean], axis=1)
         .reset_index()
         .rename(columns={"index": "variable"})
     )
