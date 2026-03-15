@@ -8,4 +8,4 @@ lint:
 	uv run ruff check .
 
 notebook: install
-	uv run marimo edit tests/nb_parcoursup.py
+	uv run marimo edit tests/mpi.py

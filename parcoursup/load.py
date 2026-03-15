@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # ── Mapping matières CSV → clé courte ────────────────────────────────────────
 MATIERES: dict[str, str] = {
-    "Philosophie": "philo",
+    "Philosophie": "fr",
     "Langue vivante A": "lva",
     "Français": "fr",
     "Mathématiques Spécialité": "math_spe",
@@ -35,10 +35,10 @@ MATIERES: dict[str, str] = {
 
 # Statistiques extraites pour chaque matière / trimestre
 STATS: dict[str, str] = {
-    "Moyenne du Candidat": "moyenne",
+    "Moyenne du Candidat": "moy",
     "Rang Candidat": "rang",
     "Effectif Classe": "effectif",
-    "Moyenne classe Candidat": "moyenne_classe",
+    "Moyenne classe Candidat": "moy_classe",
 }
 
 
@@ -226,16 +226,17 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
     tuples: list[tuple[str, int, str]] = []
     data: dict[tuple[str, int, str], pd.Series] = {}
 
-    # Bloc 0 → Terminale (annee, suffix=""), Bloc 1 → Première (annee-1, suffix=".1")
     year_configs = [
-        (annee, ""),  # Terminale
-        (annee - 1, ".1"),  # Première
+        (annee, ""), # Terminale
+        (annee - 1, ".1"), # Première
     ]
 
     for matiere_csv, matiere_short in MATIERES.items():
         for year_short, suffix in year_configs:
-            if matiere_short == "fr" and suffix == "":
-                continue  # Pas de notes de français en première
+            if matiere_csv == "Français" and suffix == "":
+                continue
+            if matiere_csv == "Philosophie" and suffix == ".1":
+                continue
             for stat_csv, stat_short in STATS.items():
                 cols_t = []
                 for t in (1, 2, 3):
@@ -250,7 +251,6 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
                     data[key] = pd.Series([float("nan")] * len(df)).values
                 tuples.append(key)
 
-    # Français : ajouter écrit et oral (épreuves du bac)
     for col_csv, stat_name in [
         ("Note de l'épreuve - Français écrit", "ecrit"),
         ("Note de l'épreuve - Français oral", "oral"),
@@ -260,29 +260,6 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
             data[key] = _to_numeric(df[col_csv]).values
             tuples.append(key)
 
-    # ── Métadonnées par année (info) ─────────────────────────────────────
-    for offset in (0, -1):
-        ys = _year_str(annee, offset)
-        yr = annee + offset
-
-        # lva
-        col = f"Langue vivante A scolarité - Libellé {ys}"
-        key = ("info", yr, "lva")
-        data[key] = df[col].values if col in df.columns else pd.Series([None] * len(df)).values
-        tuples.append(key)
-
-        # math_expertes (booléen)
-        opt1 = f"Option facultative 1 Scolarité - Libellé {ys}"
-        opt2 = f"Option facultative 2 Scolarité - Libellé {ys}"
-        has_me = pd.Series([False] * len(df))
-        for opt_col in (opt1, opt2):
-            if opt_col in df.columns:
-                has_me = has_me | (df[opt_col] == "Mathématiques Expertes")
-        key = ("info", yr, "math_expertes")
-        data[key] = has_me.values
-        tuples.append(key)
-
-    # Construire le MultiIndex et le DataFrame
     multi_idx = pd.MultiIndex.from_tuples(tuples, names=["matiere", "annee", "stat"])
     notes = pd.DataFrame(data, index=df["Candidat - Code"], columns=multi_idx)
     notes.index.name = "code"
@@ -290,16 +267,22 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
     return notes
 
 
-def _add_specialite_flags(eleves: pd.DataFrame, notes: pd.DataFrame, annee: int) -> pd.DataFrame:
-    for niveau, year in (("terminale", annee), ("premiere", annee - 1)):
-        for matiere in ("math_spe", "pc", "nsi"):
-            eleves[f"{matiere}_{niveau}"] = notes[(matiere, year, "moyenne")].notna().values
+def _add_specialite_flags(eleves: pd.DataFrame, notes: pd.DataFrame, df: pd.DataFrame, annee: int) -> pd.DataFrame:
+    for niveau, year in (("term", annee), ("prem", annee - 1)):
+        ys = _year_str(year)
 
-        key = ("info", year, "math_expertes")
-        if key in notes.columns:
-            eleves[f"math_expertes_{niveau}"] = notes[key].fillna(False).astype(bool).values
-        else:
-            eleves[f"math_expertes_{niveau}"] = False
+        for matiere in ("math_spe", "pc", "nsi"):
+            eleves[f"{matiere}_{niveau}"] = notes[(matiere, year, "moy")].notna().values
+
+        opt1 = f"Option facultative 1 Scolarité - Libellé {ys}"
+        opt2 = f"Option facultative 2 Scolarité - Libellé {ys}"
+        has_me = pd.Series(False, index=df.index)
+
+        for opt_col in (opt1, opt2):
+            if opt_col in df.columns:
+                has_me = has_me | (df[opt_col] == "Mathématiques Expertes")
+
+        eleves[f"math_expertes_{niveau}"] = has_me.values
 
     return eleves
 
@@ -327,6 +310,6 @@ def load(annee: int = 2026) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df = _read_csv(annee)
     eleves = _build_eleves(df, annee)
     notes = _build_notes(df, annee)
-    eleves = _add_specialite_flags(eleves, notes, annee)
+    eleves = _add_specialite_flags(eleves, notes, df, annee)
     lycees = _build_lycees(eleves, annee)
     return eleves, notes, lycees

@@ -34,6 +34,12 @@ def _(eleves):
 
 
 @app.cell
+def _(notes):
+    notes
+    return
+
+
+@app.cell
 def _(eleves, pd):
     stats = pd.DataFrame(
         {
@@ -41,10 +47,10 @@ def _(eleves, pd):
             "Garçons": [(~eleves["fille"]).sum()],
             "Boursiers": [eleves["boursier"].sum()],
             "Internat demandé": [eleves["internat"].sum()],
-            "NSI terminale": [eleves["nsi_terminale"].sum()],
-            "NSI première": [eleves["nsi_premiere"].sum()],
-            "PC terminale": [eleves["pc_terminale"].sum()],
-            "PC première": [eleves["pc_premiere"].sum()],
+            "NSI term": [eleves["nsi_term"].sum()],
+            "NSI première": [eleves["nsi_prem"].sum()],
+            "PC term": [eleves["pc_term"].sum()],
+            "PC première": [eleves["pc_prem"].sum()],
         }
     ).T
     stats.columns = ["Effectif"]
@@ -59,8 +65,8 @@ def stats_notes(annee, mo, notes, pd):
     matieres = ["philo", "fr", "math_spe", "pc", "nsi", "math_expertes", "lva"]
     summary_rows = []
     for m in matieres:
-        if (m, short, "moyenne") in notes.columns:
-            col = notes[(m, short, "moyenne")]
+        if (m, short, "moy") in notes.columns:
+            col = notes[(m, short, "moy")]
             summary_rows.append(
                 {
                     "Matière": m,
@@ -70,7 +76,7 @@ def stats_notes(annee, mo, notes, pd):
                     "Min": col.min(),
                     "Max": col.max(),
                     "N": col.count(),
-                    "Moyenne classe": notes[(m, short, "moyenne_classe")].mean(),
+                    "Moyenne classe": notes[(m, short, "moy_classe")].mean(),
                 }
             )
     summary = pd.DataFrame(summary_rows).round(2)
