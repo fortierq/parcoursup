@@ -253,13 +253,14 @@ def _build_notes(df: pd.DataFrame, annee: int) -> pd.DataFrame:
                 tuples.append(key)
 
     for col_csv, stat_name in [
-        ("Note de l'épreuve - Français écrit", "ecrit"),
-        ("Note de l'épreuve - Français oral", "oral"),
+        ("Note de l'épreuve - Français écrit", "bac_ecrit"),
+        ("Note de l'épreuve - Français oral", "bac_oral"),
     ]:
         if col_csv in df.columns:
             key = ("fr", annee, stat_name)
             data[key] = _to_numeric(df[col_csv]).values
             tuples.append(key)
+            print(key)
 
     multi_idx = pd.MultiIndex.from_tuples(tuples, names=["matiere", "annee", "stat"])
     notes = pd.DataFrame(data, index=df["Candidat - Code"], columns=multi_idx)
