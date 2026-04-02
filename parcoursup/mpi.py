@@ -225,10 +225,14 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
     datasets: list[pd.DataFrame] = []
 
     for annee in annees:
-        eleves, notes, _ = load(annee)
+        eleves, notes, lycees = load(annee)
         ranking = load_classement(annee)
         features = _build_feature_frame(notes, annee)
-        profils = eleves.reset_index().loc[:, ["code", "fille", "boursier"]]
+        profils = eleves.reset_index().loc[:, ["code", "fille", "boursier", "uai"]]
+        if "pourcentage_tb" in lycees.columns:
+            profils = profils.merge(lycees[["uai", "pourcentage_tb"]], on="uai", how="left")
+        else:
+            profils["pourcentage_tb"] = float("nan")
         cohort = ranking.join(features, on="code").merge(
             profils, on="code", how="left")
         unique_cohort = cohort.groupby(["nom", "prenom"]).filter(
@@ -240,6 +244,7 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
             "prenom",
             "fille",
             "boursier",
+            "pourcentage_tb",
             "classement",
             "points_formule",
             * features.columns.tolist(),
@@ -255,120 +260,3 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
         datasets.append(merged)
 
     return pd.concat(datasets, ignore_index=True)
-
-
-def build_subject_scatter_data(dataset: pd.DataFrame) -> pd.DataFrame:
-    records: list[pd.DataFrame] = []
-    student_columns = ["annee", "classe", "nom_mpi", "prenom_mpi"]
-
-    for spec in SUBJECT_PLOT_SPECS:
-        mpi_column = str(spec["mpi_column"])
-        if mpi_column not in dataset.columns:
-            continue
-        for lycee_column, serie in spec["lycee_columns"]:
-            if lycee_column not in dataset.columns:
-                continue
-            frame = (
-                dataset.loc[:, [*student_columns, lycee_column, mpi_column]]
-                .dropna()
-                .rename(columns={lycee_column: "note_lycee", mpi_column: "note_mpi"})
-            )
-            if frame.empty:
-                continue
-            frame["matiere"] = str(spec["matiere"])
-            frame["serie"] = serie
-            frame["variable_lycee"] = lycee_column
-            frame["variable_mpi"] = mpi_column
-            records.append(frame)
-
-    if not records:
-        return pd.DataFrame(
-            columns=[
-                *student_columns,
-                "note_lycee",
-                "note_mpi",
-                "matiere",
-                "serie",
-                "variable_lycee",
-                "variable_mpi",
-            ]
-        )
-
-    return pd.concat(records, ignore_index=True)
-
-
-def build_projection_line(scored: pd.DataFrame, intercept: float) -> pd.DataFrame:
-    if scored.empty or "projection_mpi" not in scored.columns:
-        return pd.DataFrame(columns=["projection_mpi", "prediction_mpi"])
-
-    projection = pd.to_numeric(
-        scored["projection_mpi"], errors="coerce").dropna()
-    if projection.empty:
-        return pd.DataFrame(columns=["projection_mpi", "prediction_mpi"])
-
-    line = pd.DataFrame(
-        {"projection_mpi": [projection.min(), projection.max()]})
-    line["prediction_mpi"] = intercept + line["projection_mpi"]
-    return line
-
-
-def learn_selection_model(
-    dataset: pd.DataFrame,
-    feature_names: tuple[str, ...] | None = None,
-    target: str = "mpi_moy",
-) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
-    if dataset.empty:
-        raise ValueError("Le jeu de données d'entraînement est vide.")
-
-    feature_names = feature_names or tuple(DEFAULT_FEATURES)
-    train = dataset.dropna(subset=[target]).copy()
-    X = train.loc[:, feature_names].apply(pd.to_numeric, errors="coerce")
-    X = X.dropna(axis=1, how="all")
-    if X.empty:
-        raise ValueError(
-            "Aucune feature numérique exploitable pour l'apprentissage.")
-
-    y = train[target].to_numpy(dtype=float)
-
-    pipeline = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(strategy="mean")),
-            ("scaler", StandardScaler()),
-            ("linear_regression", LinearRegression()),
-        ]
-    )
-    pipeline.fit(X, y)
-
-    imputed = pipeline.named_steps["imputer"].transform(X)
-    X_scaled = pipeline.named_steps["scaler"].transform(imputed)
-    model = pipeline.named_steps["linear_regression"]
-    predictions = pipeline.predict(X)
-    projection = X_scaled @ model.coef_
-    r2 = float(model.score(X_scaled, y))
-
-    used_features = tuple(X.columns)
-    standardized = pd.Series(
-        model.coef_, index=used_features, name="coefficient_standardise")
-    positive_weights = standardized.clip(lower=0)
-    if positive_weights.sum() == 0:
-        positive_weights[:] = 1.0
-    normalized_weights = (
-        positive_weights / positive_weights.sum()).rename("poids_selection")
-
-    coefficient_table = pd.concat([standardized, normalized_weights], axis=1).sort_values(
-        "poids_selection", ascending=False)
-
-    scored = train.copy()
-    X_imputed = pd.DataFrame(imputed, columns=used_features, index=train.index)
-    scored["projection_mpi"] = projection
-    scored["prediction_mpi"] = predictions
-    scored["score_selection_appris"] = X_imputed.mul(
-        normalized_weights, axis=1).sum(axis=1)
-
-    metrics = {
-        "n_eleves": float(len(scored)),
-        "r2": r2,
-        "correlation_prediction": float(pd.Series(predictions).corr(pd.Series(y))),
-        "intercept": float(model.intercept_),
-    }
-    return coefficient_table, scored, metrics

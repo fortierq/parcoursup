@@ -6,6 +6,7 @@ import pandas as pd
 
 ROW_SPECS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Points formule", ("points_formule",)),
+    ("% TB", ("pourcentage_tb",)),
     ("Mathématiques", ("math_spe_prem",
                        "math_spe_term", "math_expertes_term")),
     ("Physique-chimie", ("pc_prem", "pc_term")),

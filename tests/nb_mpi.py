@@ -1,19 +1,7 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "pandas>=2.0",
-#     "altair>=6.0.0",
-#     "marimo>=0.20.4",
-#     "pyarrow>=18.0.0",
-#     "pyzmq>=27.1.0",
-#     "scikit-learn>=1.7.0",
-# ]
-# ///
-
 import marimo
 
-__generated_with = "0.20.4"
-app = marimo.App(width="medium")
+__generated_with = "0.22.0"
+app = marimo.App(width="full")
 
 
 @app.cell
@@ -22,9 +10,9 @@ def _():
     from tests.draw_mpi import build_mpi_chart, build_correlation_heatmap, build_correlation_long, build_selection_summary
     import marimo as mo
 
-    mpi = load_mpi()[["nom", "prenom", "fille", "boursier", "mpi_moy", "math_mpi_moy", "pc_mpi_moy", "info_mpi_moy",
-                      "points_formule", "nsi_prem", "nsi_term", "pc_prem", "pc_term", "math_spe_prem", "math_spe_term", "math_expertes_term", "fr_prem", "fr_term", "lva_term"]]
-    table = mo.ui.table(mpi, selection="multi")
+    mpi = load_mpi()[["nom", "prenom", "fille", "boursier", "mpi_moy", "math_mpi_moy", "pc_mpi_moy", "info_mpi_moy", "lv1_mpi_moy", "fr_mpi_moy",
+                      "points_formule", "nsi_prem", "nsi_term", "pc_prem", "pc_term", "math_spe_prem", "math_spe_term", "math_expertes_term", "fr_prem", "fr_term", "lva_term", "pourcentage_tb"]]
+    table = mo.ui.table(mpi, selection="multi",show_column_summaries=False)
     return (
         build_correlation_heatmap,
         build_correlation_long,
@@ -62,10 +50,16 @@ def _(
     correlation_chart = build_correlation_heatmap(corr_long)
 
     mo.vstack([
-        table,
-        mo.hstack([chart, moys_selection], justify="space-around"),
-        mo.hstack([chart_selection, correlation_chart], justify="space-around"),
-    ])
+            table,
+            mo.hstack([chart, mo.vstack([moys_selection], align="center")], justify="space-around"),
+            mo.hstack([chart_selection], justify="space-around"),
+            mo.vstack([correlation_chart], align="center"),
+        ])
+    return
+
+
+@app.cell
+def _():
     return
 
 

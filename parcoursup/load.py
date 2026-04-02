@@ -62,11 +62,12 @@ def _read_csv(annee: int) -> pd.DataFrame:
             return pd.read_csv(path, sep=";", encoding="utf-8", engine="python", on_bad_lines="warn")
 
 
-def _read_ival_csv(annee: int) -> pd.DataFrame:
-    short = annee % 100
-    path = ROOT / "data" / "ival" / f"ival_{short}.csv"
-    if not path.exists():
+def _read_ival_csv() -> pd.DataFrame:
+    available = sorted((ROOT / "data" / "ival").glob("ival_*.csv"))
+    if not available:
         return pd.DataFrame()
+    path = available[-1]
+
     return pd.read_csv(
         path,
         sep=";",
@@ -123,8 +124,8 @@ def _build_eleves(df: pd.DataFrame, annee: int) -> pd.DataFrame:
     return eleves
 
 
-def _build_lycees(eleves: pd.DataFrame, annee: int) -> pd.DataFrame:
-    ival = _read_ival_csv(annee)
+def _build_lycees(eleves: pd.DataFrame) -> pd.DataFrame:
+    ival = _read_ival_csv()
 
     if ival.empty:
         lycees = eleves.dropna(subset=["uai"]).groupby("uai", as_index=False).agg(public=("public", "max"), departement=("departement", "first"))
@@ -311,5 +312,5 @@ def load(annee: int = 2026) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     eleves = _build_eleves(df, annee)
     notes = _build_notes(df, annee)
     eleves = _add_specialite_flags(eleves, notes, df, annee)
-    lycees = _build_lycees(eleves, annee)
+    lycees = _build_lycees(eleves)
     return eleves, notes, lycees

@@ -1,5 +1,7 @@
 .PHONY: notebook install lint
 
+NB = tests/nb_mpi.py
+
 install:
 	uv sync
 	uv pip install -e .
@@ -7,5 +9,8 @@ install:
 lint:
 	uv run ruff check .
 
-notebook: install
-	uv run marimo edit tests/mpi.py
+nb:
+	uv run marimo edit $(NB)
+
+html:
+	uv run marimo export html-wasm $(NB) -o html2 --mode run --no-show-code
