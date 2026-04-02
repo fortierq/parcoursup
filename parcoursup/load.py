@@ -273,7 +273,7 @@ def _add_specialite_flags(eleves: pd.DataFrame, notes: pd.DataFrame, df: pd.Data
         ys = _year_str(year)
 
         for matiere in ("math_spe", "pc", "nsi"):
-            eleves[f"{matiere}_{niveau}"] = notes[(matiere, year, "moy")].notna().values
+            eleves[f"has_{matiere}_{niveau}"] = notes[(matiere, year, "moy")].notna().values
 
         opt1 = f"Option facultative 1 Scolarité - Libellé {ys}"
         opt2 = f"Option facultative 2 Scolarité - Libellé {ys}"
@@ -283,7 +283,7 @@ def _add_specialite_flags(eleves: pd.DataFrame, notes: pd.DataFrame, df: pd.Data
             if opt_col in df.columns:
                 has_me = has_me | (df[opt_col] == "Mathématiques Expertes")
 
-        eleves[f"math_expertes_{niveau}"] = has_me.values
+        eleves[f"has_math_expertes_{niveau}"] = has_me.values
 
     return eleves
 

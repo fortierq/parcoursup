@@ -47,10 +47,10 @@ def _(eleves, pd):
             "Garçons": [(~eleves["fille"]).sum()],
             "Boursiers": [eleves["boursier"].sum()],
             "Internat demandé": [eleves["internat"].sum()],
-            "NSI term": [eleves["nsi_term"].sum()],
-            "NSI première": [eleves["nsi_prem"].sum()],
-            "PC term": [eleves["pc_term"].sum()],
-            "PC première": [eleves["pc_prem"].sum()],
+            "NSI term": [eleves["has_nsi_term"].sum()],
+            "NSI première": [eleves["has_nsi_prem"].sum()],
+            "PC term": [eleves["has_pc_term"].sum()],
+            "PC première": [eleves["has_pc_prem"].sum()],
         }
     ).T
     stats.columns = ["Effectif"]

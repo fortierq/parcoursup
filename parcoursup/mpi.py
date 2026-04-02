@@ -5,13 +5,8 @@ from __future__ import annotations
 import csv
 import unicodedata
 from pathlib import Path
-from typing import TypedDict
 
 import pandas as pd
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LinearRegression
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 
 from .load import load
 
@@ -29,63 +24,6 @@ DEFAULT_FEATURES: dict[str, tuple[str, int, str]] = {
     "nsi_prem": ("nsi", -1, "moy"),
     "fr_prem": ("fr", -1, "moy"),
 }
-
-SUBJECT_PLOT_SPECS: tuple[dict[str, object], ...] = (
-    {
-        "matiere": "Mathématiques",
-        "mpi_column": "math_mpi",
-        "lycee_columns": (
-            ("math_spe_prem", "Maths spé première"),
-            ("math_spe_term", "Maths spé term"),
-            ("math_expertes_term", "Maths expertes term"),
-        ),
-    },
-    {
-        "matiere": "Physique-chimie",
-        "mpi_column": "physique_mpi",
-        "lycee_columns": (
-            ("pc_prem", "PC première"),
-            ("pc_term", "PC term"),
-        ),
-    },
-    {
-        "matiere": "Informatique",
-        "mpi_column": "informatique_mpi",
-        "lycee_columns": (
-            ("nsi_prem", "NSI première"),
-            ("nsi_term", "NSI term"),
-        ),
-    },
-    {
-        "matiere": "Français / philosophie",
-        "mpi_column": "fr_mpi",
-        "lycee_columns": (
-            ("fr_prem", "Français première"),
-            ("fr_term", "Français term"),
-        ),
-    },
-    {
-        "matiere": "Anglais",
-        "mpi_column": "anglais_mpi",
-        "lycee_columns": (("lva_term", "LVA term"),),
-    },
-)
-
-LYCEE_COLUMN_LABELS: dict[str, str] = {
-    column: label for spec in SUBJECT_PLOT_SPECS for column, label in spec["lycee_columns"]}
-MPI_COLUMN_LABELS: dict[str, str] = {
-    str(spec["mpi_column"]): f"{spec['matiere']} MPI" for spec in SUBJECT_PLOT_SPECS}
-
-
-class MPIAnalysis(TypedDict):
-    dataset: pd.DataFrame
-    correlations: pd.DataFrame
-    coefficients: pd.DataFrame
-    scored: pd.DataFrame
-    metrics: dict[str, float]
-    subject_correlation_matrix: pd.DataFrame
-    subject_scatter: pd.DataFrame
-    projection_line: pd.DataFrame
 
 
 def _normalize_text(value: object) -> str:
@@ -228,7 +166,8 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
         eleves, notes, lycees = load(annee)
         ranking = load_classement(annee)
         features = _build_feature_frame(notes, annee)
-        profils = eleves.reset_index().loc[:, ["code", "fille", "boursier", "uai"]]
+        has_columns = [c for c in eleves.columns if c.startswith("has_")]
+        profils = eleves.reset_index().loc[:, ["code", "fille", "boursier", "uai"] + has_columns]
         if "pourcentage_tb" in lycees.columns:
             profils = profils.merge(lycees[["uai", "pourcentage_tb"]], on="uai", how="left")
         else:
@@ -248,6 +187,7 @@ def load_mpi(annees: tuple[int, ...] = (2023, 2024)) -> pd.DataFrame:
             "classement",
             "points_formule",
             * features.columns.tolist(),
+            * has_columns,
         ]
         cohort_unique = unique_cohort.loc[:, cohort_columns]
         mpi_annee = mpi_summary.loc[mpi_summary["annee"] == annee]

@@ -12,7 +12,7 @@ ROW_SPECS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Physique-chimie", ("pc_prem", "pc_term")),
     ("Informatique", ("nsi_prem", "nsi_term")),
     ("Français", ("fr_prem", "fr_term")),
-    ("Anglais", ("lva_term",)),
+    ("Anglais", ("lva_prem", "lva_term",)),
 )
 
 COL_SPECS: tuple[tuple[str, str], ...] = (
